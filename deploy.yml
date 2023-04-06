@@ -1,0 +1,44 @@
+---
+- name: Deploy multipass VMs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    instances:
+      - vm_name: osd1
+      - vm_name: osd2
+      - vm_name: osd3
+      - vm_name: mon1
+      - vm_name: mon2
+      - vm_name: mon3
+  tasks:
+    - name: Generate an OpenSSH keypair with ed25519a
+      community.crypto.openssh_keypair:
+        path: ./multipass.key
+        type: ed25519
+        comment: ubuntu@multipass
+      register: key
+
+    - name: Launch Multipass instance
+      ansible.builtin.command:
+        cmd: multipass launch --name {{ item.vm_name }}
+      changed_when: false
+      poll: 0
+      async: 1000
+      loop: "{{ instances }}"
+      register: launcher
+
+    - name: 'Launch - check on async task'
+      ansible.builtin.async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 30
+      loop: "{{ launcher.results }}"
+      failed_when: async_poll_results.rc not in [0, 2]
+
+    - name: Deploy an ssh key
+      ansible.builtin.command:
+        cmd: multipass exec {{ item.vm_name }} -- bash -c "echo {{ key.public_key }} >> ~/.ssh/authorized_keys"
+      changed_when: false
+      loop: "{{ instances }}"
