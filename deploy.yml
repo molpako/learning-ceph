@@ -4,6 +4,7 @@
   connection: local
   gather_facts: false
   vars:
+    image: focal
     instances:
       - vm_name: osd1
       - vm_name: osd2
@@ -21,7 +22,7 @@
 
     - name: Launch Multipass instance
       ansible.builtin.command:
-        cmd: multipass launch --name {{ item.vm_name }}
+        cmd: multipass launch {{ image }} --name {{ item.vm_name }}
       changed_when: false
       poll: 0
       async: 1000
@@ -42,3 +43,6 @@
         cmd: multipass exec {{ item.vm_name }} -- bash -c "echo {{ key.public_key }} >> ~/.ssh/authorized_keys"
       changed_when: false
       loop: "{{ instances }}"
+
+    - name: refresh inventory
+      ansible.builtin.meta: refresh_inventory
